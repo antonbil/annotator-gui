@@ -81,8 +81,18 @@ The core functionality relies on the *python-chess* library.
 You **must** specify the absolute path to your UCI engine executable
 (e.g., *stockfish.exe* or *stockfish*).
 The path to your UCI engine executable (e.g., stockfish.exe or stockfish) must be defined within the configuration file.
-1.  Locate the Configuration File: Ensure you have a configuration file named configuration.json (or similar, depending on your setup) inside the settings/ directory, relative to your main script (annotator.py).
-2.  Specify the Engine Path: Edit this JSON file to include the absolute path to your engine. The key used here should match the key expected by the _load_config function (e.g., engine_path).
+1.  **Locate the Configuration File**: Ensure you have a configuration file named `configuration.json` (or similar, depending on your setup) inside the `settings/ directory`, relative to your main script (`annotator.py`).
+2.  **Specify the Engine Path**: Edit this JSON file to include the absolute path to your engine. The key used here should match the key expected by the `_load_config` function (e.g., `engine_path`).
+
+**Example** `settings/configuration.json` **structure**:
+
+```
+{
+  "engine_path": "/usr/local/bin/stockfish",
+  "default_depth": 20,
+  "theme": "dark"
+}
+```
 
 ## 💻 Usage
 
