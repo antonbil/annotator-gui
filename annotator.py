@@ -72,10 +72,10 @@ def parse_args():
         description='takes chess games in a PGN file and prints '
         'annotations to standard output')
     parser.add_argument("--gui", "-g",
-                        help="Start de grafische gebruikersinterface (GUI)",
+                        help="Start the Graphical User Interface (GUI)",
                         action='store_true')
     parser.add_argument("--filter", "-i",
-                        help="Filter games op metadata (bijv. Event:WK;Player:Carlsen)",
+                        help="Filter games by metadata (e.g., Event:WC;Player:Carlsen)",
                         default="")
     parser.add_argument("--file", "-f",
                         help="input PGN file",
@@ -86,28 +86,28 @@ def parse_args():
                         default="")
     parser.add_argument("--gametime", "-a",
                         help="how long to spend on each game \
-                            (default: %(default)s)",
+                             (default: %(default)s)",
                         default="1",
                         type=float,
                         metavar="MINUTES")
     parser.add_argument("--threads", "-t",
                         help="threads for use by the engine \
-                            (default: %(default)s)",
+                             (default: %(default)s)",
                         type=int,
                         default=8)
     parser.add_argument("--verbose", "-v", help="increase verbosity",
                         action="count")
     parser.add_argument("--outputfile", "-o",
-                        help="Expliciet pad voor het PGN uitvoerbestand. Overschrijft de standaard --pgn logica.",
+                        help="Explicit path for the PGN output file. Overrides the default PGN logging logic.",
                         default="")
 
     return parser.parse_args()
 
 
-# Functie om de bestandsnaam uit de URL/Pad te halen
+# Function to extract the filename from the URL/Path
 def extract_filename_from_inputfile(input_path: str) -> str:
     """
-    Haalt de bestandsnaam (het laatste padsegment) uit een URL of lokaal pad.
+    Extracts the filename (the last path segment) from a URL or local path.
     """
     try:
         if not input_path:
@@ -127,7 +127,7 @@ def extract_filename_from_inputfile(input_path: str) -> str:
         if not filename:
             return "default_game"
 
-        # Zorgt ervoor dat .pgn niet dubbel in de naam komt
+        # Ensures that .pgn is not duplicated in the name
         if filename.lower().endswith(".pgn"):
             filename = filename[:-4]
 
@@ -138,25 +138,25 @@ def extract_filename_from_inputfile(input_path: str) -> str:
 
 def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
     """
-    Controleert of de metagegevens van een game voldoen aan de filtercriteria.
+    Checks if a game's metadata meets the filter criteria.
     """
     if not filter_string or filter_string == "Geen":
         return True
 
-    # --- IMPLEMENTATIE 'INTERESTING' FILTER ---
+    # --- IMPLEMENTATION OF 'INTERESTING' FILTER ---
     if filter_string == "Interesting":
-        # Een partij is "Interesting" als:
-        # 1. Het resultaat niet remise is.
-        # 2. EN (Beide spelers >= HIGH_RATING) OF (Een speler met >= HIGH_RATING verliest).
+        # A game is considered "Interesting" if:
+        # 1. The result is not a draw.
+        # 2. AND (Both players >= HIGH_RATING) OR (A player with >= HIGH_RATING loses).
 
-        HIGH_RATING = 2650 # Drempelwaarde voor 'hoge rating'
+        HIGH_RATING = 2650 # Threshold value for 'high rating'
 
-        # 1. Controleer op Remise
+        # 1. Check for Draw
         result = game.headers.get("Result")
         if result == "1/2-1/2" or result is None:
-            return False # Partij is remise of heeft geen resultaat
+            return False # Game is a draw or has no result
 
-        # 2. Haal Ratings op (veilig parsen)
+        # 2. Retrieve Ratings (safe parsing)
         try:
             white_rating = int(game.headers.get("WhiteElo", 0))
         except ValueError:
@@ -167,40 +167,40 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
         except ValueError:
             black_rating = 0
 
-        # --- Rating Criteria Evaluatie ---
+        # --- Rating Criteria Evaluation ---
 
         is_high_rated_white = white_rating >= HIGH_RATING
         is_high_rated_black = black_rating >= HIGH_RATING
 
-        # A. Voldoet aan: twee spelers met hoge rating?
+        # A. Condition met: two high-rated players?
         if is_high_rated_white and is_high_rated_black:
             return True
 
-        # B. Voldoet aan: een speler met hoge rating verliest?
+        # B. Condition met: a high-rated player loses?
         high_rated_lost = False
 
-        # Wit won (1-0), controleer of hoog gewaardeerde Zwart verloor
+        # White won (1-0), check if high-rated Black lost
         if result == "1-0" and is_high_rated_black and not is_high_rated_white:
-            # Alleen interessant als de hoog gewaardeerde Zwart verliest van een lagere rating
+            # Only interesting if high-rated Black loses to a lower rating
             high_rated_lost = True
 
-        # Zwart won (0-1), controleer of hoog gewaardeerde Wit verloor
+        # Black won (0-1), check if high-rated White lost
         elif result == "0-1" and is_high_rated_white and not is_high_rated_black:
-            # Alleen interessant als de hoog gewaardeerde Wit verliest van een lagere rating
+            # Only interesting if high-rated White loses to a lower rating
             high_rated_lost = True
 
         if high_rated_lost:
             return True
 
-        # Voldoet niet aan de 'Interesting' criteria
+        # Does not meet the 'Interesting' criteria
         return False
-    # --- EINDE 'INTERESTING' FILTER ---
+    # --- END OF 'INTERESTING' FILTER ---
 
     filters = [f.strip() for f in filter_string.split(';') if f.strip()]
 
     for filter_item in filters:
         if ':' not in filter_item:
-            print(f"Waarschuwing: Ongeldig filterformaat '{filter_item}'. Moet 'Key:Value' zijn.")
+            print(f"Warning: Invalid filter format '{filter_item}'. Must be 'Key:Value'.")
             continue
 
         key, value_str = [p.strip() for p in filter_item.split(':', 1)]
@@ -208,7 +208,7 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
 
         passed_condition = False
 
-        # 1. Speciaal geval: Player (zoekt in White EN Black)
+        # 1. Special case: Player (searches in White AND Black)
         if key.lower() == 'player':
             for val in values:
                 white_player = game.headers.get("White", "")
@@ -217,7 +217,7 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
                     passed_condition = True
                     break
 
-        # 2. Speciaal geval: Title (zoekt in WhiteTitle EN BlackTitle)
+        # 2. Special case: Title (searches in WhiteTitle AND BlackTitle)
         elif key.lower() == 'title':
             for val in values:
                 white_title = game.headers.get("WhiteTitle", "")
@@ -238,7 +238,7 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
                 if val.lower() in event_title.lower():
                     passed_condition = True
                     break
-        # 3. Algemeen geval: Normale header match (bijv. Event, Site, Result)
+        # 3. General case: Standard header match (e.g., Event, Site, Result)
         else:
             header_value = game.headers.get(key, "")
 
@@ -248,7 +248,7 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
                     if val.lower() in header_value.lower():
                         passed_condition = True
                         break
-            # Exacte match
+            # Exact match
             else:
                 for val in values:
                     if val.lower() == header_value.lower():
@@ -259,94 +259,98 @@ def matches_filter(game: chess.pgn.Game, filter_string: str) -> bool:
             return False
 
     return True
-# --- LOGGING EN STDOUT OMLEIDINGSKLASSE ---
+# --- LOGGING AND STDOUT REDIRECTION CLASS ---
 
 class ConsoleRedirect(logging.Handler):
     """
-    Een custom logging handler en stdout 'file-like' object dat alle
-    uitvoer omleidt naar een Tkinter Text widget op een thread-veilige manier.
+    A custom logging handler and stdout 'file-like' object that redirects all
+    output to a Tkinter Text widget in a thread-safe manner.
     """
     def __init__(self, text_widget: tk.Text):
         super().__init__()
         self.text_widget = text_widget
         self.queue = []
         self.running = True
-        # Formatter voor logberichten
+        # Formatter for log messages
         self.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 
     def emit(self, record):
-        """Wordt aangeroepen door de logging module."""
-        # Formatteer het bericht met de logging formatter
+        """Called by the logging module."""
+        # Format the message using the logging formatter
         msg = self.format(record)
         self.write(msg + '\n')
 
     def write(self, s):
-        """Wordt aangeroepen door print() (via sys.stdout)."""
-        # Voeg bericht toe aan de wachtrij. We updaten het widget NIET direct.
+        """Called by print() (via sys.stdout)."""
+        # Add message to the queue. We do NOT update the widget directly.
         self.queue.append(s)
 
-        # Plan de GUI-update (thread-safe)
+        # Schedule the GUI update (thread-safe)
         self.text_widget.after(0, self.process_queue)
 
     def flush(self):
-        """Vereist voor file-like objecten, maar doet hier niets."""
+        """Required for file-like objects, but does nothing here."""
         pass
 
     def process_queue(self):
-        """Verwerkt de berichtenwachtrij in de hoofd-Tkinter thread."""
+        """Processes the message queue in the main Tkinter thread."""
         while self.queue:
             message = self.queue.pop(0)
             self.text_widget.insert(tk.END, message)
-            self.text_widget.see(tk.END) # Scroll automatisch naar beneden
+            self.text_widget.see(tk.END) # Auto-scrolls to the bottom
 
-def analyze_pgn_stats(input_file_path: str) -> Tuple[Dict[str, Any], Dict[str, Any]] | None:
+def analyze_pgn_stats(input_file_path: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]] | None:
     """
-    Leest het PGN-bestand en berekent de statistieken per Site en Event.
+    Reads the PGN file and calculates statistics per Site and Event.
 
-    Retourneert de verwerkte statistieken in de vorm van twee dictionaries:
+    Returns the processed statistics as two dictionaries:
     (stats_site, stats_event).
     """
     stats_site = defaultdict(lambda: {'count': 0, 'total_elo': 0, 'player_count': 0})
     stats_event = defaultdict(lambda: {'count': 0, 'total_elo': 0, 'player_count': 0})
 
-    # In een echte applicatie zou u een bestandspad valideren
+    # In a real application, you would validate a file path
     if not input_file_path or not os.path.exists(input_file_path):
-        # Omdat we hier mocken, negeren we de file check en gebruiken we de mock-data
+        # Because we are mocking here, we ignore the file check and use the mock data
         if input_file_path == "MOCK_DATA":
-            logger.info("Gebruik maken van gesimuleerde PGN-data voor Tkinter demonstratie.")
+            logger.info("Using simulated PGN data for Tkinter demonstration.")
         else:
-            logger.error(f"Fout: Inputbestand niet gevonden of niet gespecificeerd: {input_file_path}")
+            logger.error(f"Error: Input file not found or not specified: {input_file_path}")
             return None
 
     try:
+        # File handling: Using a context manager for proper closing is best practice
         if input_file_path != "MOCK_DATA":
-             logger.info(f"Start PGN-analyse van: {os.path.basename(input_file_path)}")
-             # Hier zou het bestand geopend worden:
-             pgn_file = open(input_file_path, encoding="utf-8")
+            logger.info(f"Starting PGN analysis of: {os.path.basename(input_file_path)}")
+            # Here the file would be opened:
+            pgn_file = open(input_file_path, encoding="utf-8")
         else:
-             # Gebruik een 'dummy' file handle voor de mock-lezer
-             pgn_file = None
+            # Use a 'dummy' file handle for the mock reader
+            pgn_file = None
 
         game_counter = 0
         while True:
-            # Gebruik de mock-lezer als het een simulatie is, anders de echte lezer
+            # Use the mock reader if it is a simulation, otherwise the real reader
             if input_file_path == "MOCK_DATA":
-                 game = chess.pgn.read_game(pgn_file)
+                # Assuming chess.pgn.read_game can handle None or a mock file-like object
+                # For actual execution, this part would need proper mock data handling
+                # Since we cannot run it, we use the original structure
+                game = chess.pgn.read_game(pgn_file)
             else:
-                 game = chess.pgn.read_game(pgn_file) # Echte lezer
+                game = chess.pgn.read_game(pgn_file) # Real reader
 
             if game is None:
                 break
             game_counter += 1
 
-            # 1. Headers ophalen
+            # 1. Retrieve Headers
             site = game.headers.get("Site", "Onbekende Site")
             event = game.headers.get("Event", "Onbekend Event")
 
             white_elo_str = game.headers.get("WhiteElo", "0")
             black_elo_str = game.headers.get("BlackElo", "0")
 
-            # 2. Elo en Aantal Spelers berekenen
+            # 2. Calculate Elo and Player Count
             current_game_total_elo = 0
             current_game_player_count = 0
 
@@ -355,7 +359,7 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[Dict[str, Any], Dict[str, A
                 current_game_total_elo += white_elo
                 current_game_player_count += 1
             except ValueError:
-                pass # Negeren als Elo ongeldig is
+                pass # Ignore if Elo is invalid
 
             try:
                 black_elo = int(black_elo_str)
@@ -364,7 +368,7 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[Dict[str, Any], Dict[str, A
             except ValueError:
                 pass
 
-            # Als er ten minste één geldige rating is, update de statistieken
+            # If there is at least one valid rating, update the statistics
             if current_game_player_count > 0:
                 stats_site[site]['count'] += 1
                 stats_site[site]['total_elo'] += current_game_total_elo
@@ -374,19 +378,19 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[Dict[str, Any], Dict[str, A
                 stats_event[event]['total_elo'] += current_game_total_elo
                 stats_event[event]['player_count'] += current_game_player_count
 
-        logger.info(f"Totaal {game_counter} partijen gelezen.")
+        logger.info(f"Total {game_counter} games read.")
 
-        # Sluit bestand alleen als het echt geopend is
+        # Close file only if it was actually opened
         if pgn_file:
-             pgn_file.close()
+            pgn_file.close()
 
-        # 3. Formatteer de resultaten en retourneer ze
+        # 3. Format the results and return them
 
-        # Functie om de ruwe data naar de Treeview-structuur te converteren
+        # Function to convert the raw data to the Treeview structure
         def format_stats(raw_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
             formatted = []
             for name, data in raw_stats.items():
-                # Bereken Gemiddelde ELO
+                # Calculate Average Elo
                 avg_elo = data['total_elo'] / data['player_count'] if data['player_count'] > 0 else 0
                 formatted.append({
                     "Naam": name,
@@ -398,123 +402,120 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[Dict[str, Any], Dict[str, A
         return format_stats(stats_site), format_stats(stats_event)
 
     except Exception as e:
-        logger.error(f"Onverwachte fout tijdens PGN-analyse: {e}")
-        # In geval van fouten, retourneer een lege set om de GUI niet te breken
+        logger.error(f"Unexpected error during PGN analysis: {e}")
+        # In case of errors, return an empty set to prevent the GUI from breaking
         return None
-
-# ----------------------------------------------------------------------
-# 2. TKINTER GUI KLASSE
-# ----------------------------------------------------------------------
 
 class PGNStatsView:
     def __init__(self, master, site_data: List[Dict[str, Any]], event_data: List[Dict[str, Any]]):
         self.master = master
-        master.title("PGN Analyse Resultaten")
+        master.title("PGN Analysis Results")
         master.geometry("700x500")
         master.configure(bg='#ECEFF1')
 
         self.site_data = site_data
         self.event_data = event_data
 
-        # 0. Statusbalk voor feedback (NIEUW)
-        self.status_label = ttk.Label(master, text="Klik op een rij om de naam te kopiëren.",
-                                      anchor=tk.W, background='#CFD8DC', padding=(5, 2))
+        # 0. Status bar for feedback (NEW)
+        self.status_label = ttk.Label(master, text="Click on a row to copy the name.",
+                                     anchor=tk.W, background='#CFD8DC', padding=(5, 2))
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # 1. Notebook voor tabbladen (Site / Event)
+        # 1. Notebook for tabs (Site / Event)
         self.notebook = ttk.Notebook(master)
         self.notebook.pack(pady=10, padx=10, fill="both", expand=True)
 
-        # 2. Creëer de twee frames voor de tabbladen
+        # 2. Create the two frames for the tabs
         self.site_frame = ttk.Frame(self.notebook, padding="10")
         self.event_frame = ttk.Frame(self.notebook, padding="10")
 
-        self.notebook.add(self.site_frame, text="Statistieken per Site")
-        self.notebook.add(self.event_frame, text="Statistieken per Event")
+        self.notebook.add(self.site_frame, text="Statistics by Site")
+        self.notebook.add(self.event_frame, text="Statistics by Event")
 
-        # 3. Initialiseer de Treeviews
+        # 3. Initialize the Treeviews
         self.tree_site = self._create_treeview(self.site_frame, "Site")
         self.tree_event = self._create_treeview(self.event_frame, "Event")
 
-        # Bind de klik-gebeurtenis aan de klembord-functie (NIEUW)
+        # Bind the click event to the clipboard function (NEW)
         self.tree_site.bind('<<TreeviewSelect>>', self._copy_to_clipboard)
         self.tree_event.bind('<<TreeviewSelect>>', self._copy_to_clipboard)
 
-        # 4. Vul de Treeviews en sorteer initiëel op ELO (aflopend)
+        # 4. Populate the Treeviews and initially sort by ELO (descending)
         self._load_data_into_tree(self.tree_site, self.site_data)
         self._load_data_into_tree(self.tree_event, self.event_data)
 
-        # Sorteer initiëel op Gemiddelde ELO (hoogste ELO bovenaan)
+        # Initially sort by Average ELO (highest ELO at the top)
         self._sort_treeview(self.tree_site, 'AvgElo', True)
         self._sort_treeview(self.tree_event, 'AvgElo', True)
 
-        # Werk de headers bij na de initiële sortering
+        # Update the headers after initial sorting
         self._update_header_indicator(self.tree_site, 'AvgElo', True)
         self._update_header_indicator(self.tree_event, 'AvgElo', True)
 
     def _copy_to_clipboard(self, event):
-        """Kopieert de 'Naam' (Site of Event) van de geselecteerde rij naar het klembord."""
+        """Copies the 'Naam' (Site or Event) of the selected row to the clipboard."""
 
-        # Bepaal welke treeview de gebeurtenis heeft geactiveerd
+        # Determine which treeview triggered the event
         tree = event.widget
         selected_item_ids = tree.selection()
 
         if not selected_item_ids:
             return
 
-        # Haal de waarden van het geselecteerde item op
-        # selection() geeft een tuple van IDs terug, we gebruiken de eerste [0]
+        # Retrieve the values of the selected item
+        # selection() returns a tuple of IDs, we use the first [0]
         values = tree.item(selected_item_ids[0], 'values')
 
         if values:
-            name_to_copy = str(values[0]) # Naam of Event staat op index 0
+            name_to_copy = str(values[0]) # Name or Event is at index 0
 
-            # Kopieer naar het klembord
+            # Copy to the clipboard
             self.master.clipboard_clear()
             self.master.clipboard_append(name_to_copy)
 
-            # Toon feedback in de statusbalk
-            self.status_label.configure(text=f"'{name_to_copy}' is gekopieerd naar het klembord.")
+            # Display feedback in the status bar
+            self.status_label.configure(text=f"'{name_to_copy}' copied to clipboard.")
 
     def _create_treeview(self, parent_frame: ttk.Frame, name_column_title: str) -> ttk.Treeview:
-        """Maakt en configureert een Treeview widget."""
+        """Creates and configures a Treeview widget."""
 
-        # Gebruik de 'Treeview' stijl
+        # Use the 'Treeview' style
         style = ttk.Style()
         style.theme_use("clam")
 
-        # Aangepaste stijl voor een strakker uiterlijk
+        # Custom style for a cleaner look
         style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'),
                          background='#37474F', foreground='white')
         style.configure("Treeview", rowheight=28)
 
-        # Definieer kolommen
+        # Define columns
+        # NOTE: Column identifiers are kept as original ('Naam', 'Count', 'AvgElo') for compatibility with the data dictionary keys.
         tree = ttk.Treeview(parent_frame, columns=("Naam", "Count", "AvgElo"), show='headings')
         tree.pack(fill="both", expand=True)
 
-        # Headers instellen
+        # Set Headers
         tree.heading("Naam", text=name_column_title, anchor=tk.W,
                      command=lambda: self._sort_wrapper(tree, "Naam", False))
-        tree.heading("Count", text="Aantal Partijen", anchor=tk.CENTER,
+        tree.heading("Count", text="Number of Games", anchor=tk.CENTER,
                      command=lambda: self._sort_wrapper(tree, "Count", True))
-        tree.heading("AvgElo", text="Gemiddelde ELO", anchor=tk.CENTER,
+        tree.heading("AvgElo", text="Average ELO", anchor=tk.CENTER,
                      command=lambda: self._sort_wrapper(tree, "AvgElo", True))
 
-        # Breedtes instellen
+        # Set widths
         tree.column("Naam", width=250, anchor=tk.W)
         tree.column("Count", width=120, anchor=tk.CENTER)
         tree.column("AvgElo", width=120, anchor=tk.CENTER)
 
-        # Scrollbar toevoegen
+        # Add scrollbar
         vsb = ttk.Scrollbar(parent_frame, orient="vertical", command=tree.yview)
-        # Gebruik place() om de scrollbar naast de treeview te positioneren
+        # Use place() to position the scrollbar next to the treeview
         vsb.place(relx=1.0, rely=0, relheight=1.0, anchor='ne')
         tree.configure(yscrollcommand=vsb.set)
 
         return tree
 
     def _load_data_into_tree(self, tree: ttk.Treeview, data: List[Dict[str, Any]]):
-        """Voegt de gestructureerde data toe aan de Treeview."""
+        """Inserts the structured data into the Treeview."""
         for item in tree.get_children():
             tree.delete(item)
 
@@ -522,12 +523,12 @@ class PGNStatsView:
             tag = 'oddrow' if i % 2 != 0 else 'evenrow'
             tree.insert("", tk.END, values=(item["Naam"], item["Count"], item["AvgElo"]), tags=(tag,))
 
-        # Configureer de tags voor afwisselende kleuren
+        # Configure tags for alternating colors
         tree.tag_configure('evenrow', background='#F5F5F5')
         tree.tag_configure('oddrow', background='#FFFFFF')
 
     def _sort_wrapper(self, tree: ttk.Treeview, col_key: str, is_numeric: bool):
-        """Wrapper voor sortering, bepaalt de nieuwe richting en roept de sortering aan."""
+        """Wrapper for sorting, determines the new direction and calls the sorting function."""
 
         current_text = tree.heading(col_key)['text']
         reverse = False
@@ -537,14 +538,14 @@ class PGNStatsView:
         elif "▼" in current_text:
              reverse = False
         elif col_key in ('Count', 'AvgElo'):
-             # Eerste klik op numerieke velden: aflopend (logisch voor aantallen/scores)
+             # First click on numeric fields: descending (logical for counts/scores)
              reverse = True
 
         self._sort_treeview(tree, col_key, reverse)
         self._update_header_indicator(tree, col_key, reverse)
 
     def _sort_treeview(self, tree: ttk.Treeview, col_key: str, reverse: bool):
-        """Sorteert de rijen in de Treeview op basis van de kolom en richting."""
+        """Sorts the rows in the Treeview based on the column and direction."""
 
         data = [(tree.set(child, col_key), child) for child in tree.get_children('')]
 
@@ -559,55 +560,56 @@ class PGNStatsView:
             tree.item(child, tags=(tag,))
 
     def _update_header_indicator(self, tree: ttk.Treeview, col_key: str, reverse: bool):
-        """Werkt de kolomheaders bij om de sorteerrichting te tonen."""
+        """Updates the column headers to show the sorting direction."""
 
-        # 1. Reset alle headers
+        # 1. Reset all headers
         for c in tree['columns']:
             original_text = tree.heading(c)['text'].split(' ')[0]
-            # Herstel de oorspronkelijke 'command'
+            # Restore the original 'command'
             tree.heading(c, text=original_text, command=tree.heading(c, option='command'))
 
-        # 2. Stel de nieuwe header in met indicator
+        # 2. Set the new header with indicator
         indicator = " ▼" if reverse else " ▲"
         original_text = tree.heading(col_key)['text'].split(' ')[0]
 
-        # Behoud de command handler
+        # Preserve the command handler
         command = tree.heading(col_key, option='command')
         tree.heading(col_key, text=original_text + indicator, command=command)
-
-# --- Tkinter Applicatie Klasse ---
+# ----------------------------------------------------------------------
+# TKINTER GUI CLASS
+# ----------------------------------------------------------------------
 
 class AnnotatorGUI(tk.Tk):
     def __init__(self, initial_filter, initial_engine_path, initial_gametime):
         super().__init__()
-        self.title("Annotator Configuratie")
+        self.title("Annotator Configuration")
         self.geometry("800x800")
 
-        # Zorg voor een single-threaded executor om te voorkomen dat twee analyses tegelijkertijd draaien
+        # Ensure a single-threaded executor to prevent two analyses from running simultaneously
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.analysis_future = None
         self.original_stdout = sys.stdout
         self.console_handler = None
 
-        # --- DEFINIEER ENGINE MAPPING ---
+        # --- DEFINE ENGINE MAPPING ---
         self.default_pgn_dir = os.path.join(os.path.expanduser("~"), "Schaken")
 
-        # 1. Lijst van (Weergavenaam, Technisch Pad)
+        # 1. List of (Display Name, Technical Path)
         self.engine_options: List[Tuple[str, str]] = [
-            ("Stockfish (Standaard Engine Pad)", "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/stockfish-ubuntu-x86-64-avx2"),
+            ("Stockfish (Standard Engine Path)", "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/stockfish-ubuntu-x86-64-avx2"),
             ("Koivisto 9.2 (Linux Engine)", "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/Koivisto_9.2-linux-pgo-native"),
-            ("Leeg (Handmatig invoeren of bladeren)", ""),
+            ("Empty (Enter manually or browse)", ""),
         ]
 
-        # 2. Map voor snelle lookup
+        # 2. Map for quick lookup
         self.engine_map: Dict[str, str] = {name: path for name, path in self.engine_options}
 
-        # 3. Alleen de weergavenamen voor de Combobox
+        # 3. Only the display names for the Combobox
         self.default_engine_display_names: List[str] = [name for name, path in self.engine_options]
 
-        # Initialiseer variabelen
+        # Initialize variables
         initial_inputfile = ""
-        self.default_filters = ["Geen", "Interesting", "Result:1-0", "Site:Wijk;Result:1-0,0-1;Title:GM", "Player:Carlsen;TimeControl:600+5"]
+        self.default_filters = ["None", "Interesting", "Result:1-0", "Site:Wijk;Result:1-0,0-1;Title:GM", "Player:Carlsen;TimeControl:600+5"]
 
         self.inputfile_var = tk.StringVar(value=initial_inputfile)
         self.pgn_var = tk.StringVar()
@@ -616,12 +618,12 @@ class AnnotatorGUI(tk.Tk):
         self._pgn_manually_set = False
         self.update_pgn_path(initial_setup=True)
 
-        # 4. Engine State Variabelen
-        # a) engine_var houdt de WEERGAVENAAM van de Combobox bij
+        # 4. Engine State Variables
+        # a) engine_var tracks the DISPLAY NAME of the Combobox
         initial_display_name = self.default_engine_display_names[0] if self.default_engine_display_names else ""
         self.engine_var = tk.StringVar(value=initial_display_name)
 
-        # b) _engine_path_var houdt het TECHNISCHE PAD bij (de echte waarde voor analyse)
+        # b) _engine_path_var tracks the TECHNICAL PATH (the real value for analysis)
         initial_path = self.engine_map.get(initial_display_name, initial_engine_path)
         self._engine_path_var = tk.StringVar(value=initial_path)
 
@@ -629,42 +631,42 @@ class AnnotatorGUI(tk.Tk):
         self.inputfile_var.trace_add("write", self.update_pgn_path)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-    # --- Engine Selector Logica ---
+    # --- Engine Selector Logic ---
 
     def on_engine_selected(self, event):
-        """Wordt geactiveerd wanneer een optie in de combobox wordt geselecteerd."""
+        """Triggered when an option in the combobox is selected."""
         selected_display_name = self.engine_var.get()
 
-        # Zoek het technische pad op basis van de weergavenaam
+        # Look up the technical path based on the display name
         selected_path = self.engine_map.get(selected_display_name)
 
         if selected_path is not None:
-            # Update de interne variabele met het technische pad
+            # Update the internal variable with the technical path
             self._engine_path_var.set(selected_path)
         else:
-            # Dit gebeurt als de gebruiker handmatig typt of als er een onverwachte waarde is.
-            # We gaan ervan uit dat de getypte waarde ZELF het technische pad is
-            # en updaten de interne variabele ook.
+            # This happens if the user types manually or if there is an unexpected value.
+            # We assume the typed value ITSELF is the technical path
+            # and update the internal variable as well.
             self._engine_path_var.set(selected_display_name)
 
 
     def browse_engine_file(self):
-        """Vraagt om een engine-pad en werkt zowel de weergave als het pad bij."""
+        """Prompts for an engine path and updates both the display and the path."""
         engine_path = filedialog.askopenfilename(
-            title="Selecteer de schaakengine (bijv. stockfish)",
-            filetypes=[("Uitvoerbare bestanden", ("*.exe", "*")), ("Alle bestanden", "*.*")]
+            title="Select the chess engine (e.g., stockfish)",
+            filetypes=[("Executable files", ("*")), ("All files", "*.*")]
         )
         if engine_path:
-            # 1. Update de interne variabele (de echte waarde)
+            # 1. Update the internal variable (the real value)
             self._engine_path_var.set(engine_path)
 
-            # 2. Creëer een nieuwe weergavenaam voor de Combobox
-            display_name = f"Aangepast pad: {os.path.basename(engine_path)}"
+            # 2. Create a new display name for the Combobox
+            display_name = f"Custom Path: {os.path.basename(engine_path)}"
 
-            # 3. Update de Combobox met de nieuwe weergavenaam
+            # 3. Update the Combobox with the new display name
             self.engine_var.set(display_name)
 
-            # Optioneel: voeg de nieuwe optie toe aan de map en values
+            # Optional: add the new option to the map and values
             if display_name not in self.engine_map:
                 self.engine_map[display_name] = engine_path
                 current_values = list(self.engine_combobox['values'])
@@ -672,12 +674,12 @@ class AnnotatorGUI(tk.Tk):
                     current_values.append(display_name)
                     self.engine_combobox['values'] = current_values
 
-    # --- Applicatie Logica ---
+    # --- Application Logic ---
 
     def on_closing(self):
-        """Stop de executor en sluit de applicatie af."""
+        """Stops the executor and closes the application."""
         if self.analysis_future and self.analysis_future.running():
-            logger.warning("Taak wordt afgebroken.")
+            logger.warning("Task is being cancelled.")
             self.analysis_future.cancel()
         self.executor.shutdown(wait=False)
         self.destroy()
@@ -699,44 +701,44 @@ class AnnotatorGUI(tk.Tk):
             initialdir=os.path.dirname(self.pgn_var.get()) if self.pgn_var.get() else self.default_pgn_dir,
             initialfile=os.path.basename(self.pgn_var.get()) if self.pgn_var.get() else "",
             filetypes=[("PGN files", "*.pgn"), ("All files", "*.*")],
-            title="Sla het geannoteerde PGN-bestand op als..."
+            title="Save the annotated PGN file as..."
         )
         if filename:
             self.pgn_var.set(filename)
 
     def run_annotate_start(self):
-        """Start de engine-analyse in een aparte thread en leidt de uitvoer om."""
+        """Starts the engine analysis in a separate thread and redirects output."""
 
         if self.analysis_future and self.analysis_future.running():
-            self.status_var.set("Fout: Analyse is al bezig.")
+            self.status_var.set("Error: Analysis is already running.")
             return
 
         inputfile_arg = self.inputfile_var.get()
         outputfile_arg = self.pgn_var.get()
         filter_arg = self.filter_var.get()
 
-        # GEBRUIK HIER DE INTERNE PATH VARIABELE (de technische waarde)
+        # USE THE INTERNAL PATH VARIABLE HERE (the technical value)
         engine_arg = self._engine_path_var.get()
 
         gametime_str = self.gametime_var.get()
 
         if not inputfile_arg or not engine_arg or not gametime_str:
-            # We controleren op de technische waarde!
-            self.status_var.set("Fout: Vul alle verplichte velden in (Input, Engine Pad, Tijd).")
+            # We check the technical value!
+            self.status_var.set("Error: Fill in all required fields (Input, Engine Path, Time).")
             return
 
         try:
             gametime_arg = float(gametime_str)
         except ValueError:
-            self.status_var.set("Fout: Analyse Tijd moet een geldig nummer zijn.")
+            self.status_var.set("Error: Analysis Time must be a valid number.")
             return
 
         self.console_text.delete(1.0, tk.END)
         self.redirect_output_start()
 
-        self.status_var.set(f"Engine-analyse gestart voor {extract_filename_from_inputfile(inputfile_arg)}... (Bezig)")
+        self.status_var.set(f"Engine analysis started for {extract_filename_from_inputfile(inputfile_arg)}... (Running)")
         self.start_button.config(state=tk.DISABLED)
-        self.analyze_button.config(state=tk.DISABLED) # Schakel Analyse-knop uit
+        self.analyze_button.config(state=tk.DISABLED) # Disable Analysis button
 
         self.analysis_future = self.executor.submit(
             run_annotate, inputfile_arg, engine_arg, gametime_arg, 8, filter_arg, outputfile_arg
@@ -744,33 +746,34 @@ class AnnotatorGUI(tk.Tk):
 
         self.after(100, lambda: self.check_analysis_status(outputfile_arg))
 
-    # --- FUNCTIES VOOR PGN-ANALYSE ---
+    # --- FUNCTIONS FOR PGN ANALYSIS ---
 
     def run_pgn_analysis(self):
-        """Start de PGN-analyse (statistieken) in een aparte thread."""
+        """Starts the PGN analysis (statistics) in a separate thread."""
 
         if self.analysis_future and self.analysis_future.running():
-            self.status_var.set("Fout: Analyse is al bezig.")
+            self.status_var.set("Error: Analysis is already running.")
             return
 
         inputfile_arg = self.inputfile_var.get()
         if not inputfile_arg:
-            self.status_var.set("Fout: Selecteer eerst een Input Bestand/URL.")
+            self.status_var.set("Error: Select an Input File/URL first.")
             return
 
         self.console_text.delete(1.0, tk.END)
-        self.redirect_output_start() # Zorgt ervoor dat output naar de console gaat
+        self.redirect_output_start() # Ensures output goes to the console
 
-        self.status_var.set(f"PGN-analyse gestart voor {extract_filename_from_inputfile(inputfile_arg)}... (Bezig)")
+        self.status_var.set(f"PGN analysis started for {extract_filename_from_inputfile(inputfile_arg)}... (Running)")
 
         self.start_button.config(state=tk.DISABLED)
         self.analyze_button.config(state=tk.DISABLED)
 
-        # De analyse wordt als een toekomstige taak ingestuurd
+        # The analysis is submitted as a future task
         # self.analysis_future = self.executor.submit(
         #     analyze_pgn_stats, inputfile_arg
         # )
 
+        # For synchronous execution in this example, call directly:
         results = analyze_pgn_stats(inputfile_arg)
 
         if results:
@@ -778,13 +781,13 @@ class AnnotatorGUI(tk.Tk):
             site_stats, event_stats = results
 
             root = tk.Tk()
-            # Initialiseer de GUI met de geretourneerde data
+            # Initialize the GUI with the returned data
             PGNStatsView(root, site_stats, event_stats)
             root.mainloop()
         else:
             self.check_analysis_status_pgn(False)
-            # Toon een foutmelding als de analyse mislukt (bijv. geen data of foute lezing)
-            messagebox.showerror("Fout", "PGN-analyse mislukt. Controleer de logging voor de reden.")
+            # Display an error message if the analysis fails (e.g., no data or incorrect reading)
+            messagebox.showerror("Error", "PGN analysis failed. Check the log for the reason.")
 
 
     def check_analysis_status_pgn(self, success):
@@ -792,40 +795,41 @@ class AnnotatorGUI(tk.Tk):
             self.analyze_button.config(state=tk.NORMAL)
 
             try:
-                #success = self.analysis_future.result()
+                # success = self.analysis_future.result() # If future were used
                 if success:
-                    self.status_var.set("✅ PGN-analyse voltooid. Zie Logboek voor statistieken.")
+                    self.status_var.set("✅ PGN Analysis completed. See Log for statistics.")
                 else:
-                    self.status_var.set("❌ PGN-analyse mislukt. Zie logboek voor details.")
+                    self.status_var.set("❌ PGN Analysis failed. See log for details.")
             except Exception as e:
-                self.status_var.set(f"❌ Er is een onverwachte fout opgetreden: {e}")
+                self.status_var.set(f"❌ An unexpected error occurred: {e}")
             finally:
-                self.analysis_future = None
-    # --- EINDE NIEUWE FUNCTIES VOOR PGN-ANALYSE ---
+                # self.analysis_future = None # If future were used
+                pass # Do nothing since we called directly
+    # --- END OF NEW FUNCTIONS FOR PGN ANALYSIS ---
 
 
     def redirect_output_start(self):
-        """Leidt sys.stdout en de logging handlers om naar het Text widget."""
-        # Verwijder eerst eventuele bestaande handlers om duplicatie te voorkomen
+        """Redirects sys.stdout and the logging handlers to the Text widget."""
+        # First remove any existing handlers to prevent duplication
         if self.console_handler:
-             logging.getLogger().removeHandler(self.console_handler)
+            logging.getLogger().removeHandler(self.console_handler)
 
         self.console_handler = ConsoleRedirect(self.console_text)
-        sys.stdout = self.console_handler # Leidt print() calls om
-        logging.getLogger().addHandler(self.console_handler) # Leidt logger calls om
+        sys.stdout = self.console_handler # Redirects print() calls
+        logging.getLogger().addHandler(self.console_handler) # Redirects logger calls
 
 
     def redirect_output_stop(self):
-        """Herstelt sys.stdout en verwijdert de custom logging handler."""
+        """Restores sys.stdout and removes the custom logging handler."""
         sys.stdout = self.original_stdout
         if self.console_handler:
-            # We moeten de handler van de root logger verwijderen
+            # We must remove the handler from the root logger
             logging.getLogger().removeHandler(self.console_handler)
             self.console_handler = None
 
 
     def check_analysis_status(self, outputfile_arg):
-        """Controleert of de annotatietaak in de aparte thread is voltooid."""
+        """Checks if the annotation task in the separate thread is complete."""
         if not self.analysis_future:
             return
 
@@ -834,24 +838,24 @@ class AnnotatorGUI(tk.Tk):
         else:
             self.redirect_output_stop()
             self.start_button.config(state=tk.NORMAL)
-            self.analyze_button.config(state=tk.NORMAL) # Schakel Analyse-knop weer in
+            self.analyze_button.config(state=tk.NORMAL) # Re-enable Analysis button
 
             try:
                 success = self.analysis_future.result()
                 if success:
-                    self.status_var.set(f"✅ Engine-analyse voltooid. Games opgeslagen in {os.path.basename(outputfile_arg)}.")
+                    self.status_var.set(f"✅ Engine analysis complete. Games saved to {os.path.basename(outputfile_arg)}.")
                 else:
-                    self.status_var.set("❌ Engine-analyse mislukt. Zie logboek voor details.")
+                    self.status_var.set("❌ Engine analysis failed. See log for details.")
             except Exception as e:
-                self.status_var.set(f"❌ Er is een onverwachte fout opgetreden: {e}")
+                self.status_var.set(f"❌ An unexpected error occurred: {e}")
             finally:
                 self.analysis_future = None
 
 
     def create_widgets(self):
-        # Configureer de grid layout
+        # Configure the grid layout
         self.columnconfigure(1, weight=1)
-        self.rowconfigure(8, weight=1) # Nu rij 8 wegens de extra knoppenrij
+        self.rowconfigure(8, weight=1) # Now row 8 because of the extra button row
 
         style = ttk.Style()
         style.configure("TLabel", padding=5, font=('Arial', 10))
@@ -860,21 +864,21 @@ class AnnotatorGUI(tk.Tk):
 
         row_index = 0
 
-        # --- Configuratie Velden ---
+        # --- Configuration Fields ---
 
         # 1. INPUT FILE/URL Entry
-        ttk.Label(self, text="Input Bestand/URL (-i):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
+        ttk.Label(self, text="Input File/URL (-i):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
         inputfile_entry = ttk.Entry(self, textvariable=self.inputfile_var, width=80)
         inputfile_entry.grid(row=row_index, column=1, sticky="ew", padx=10, pady=5)
         inputfile_entry.focus_set()
         row_index += 1
 
         # 2. PGN Entry (Output File)
-        ttk.Label(self, text="PGN Uitvoerbestand (-o):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
+        ttk.Label(self, text="PGN Output File (-o):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
         pgn_entry = ttk.Entry(self, textvariable=self.pgn_var)
         pgn_entry.grid(row=row_index, column=1, sticky="ew", padx=10, pady=5)
         pgn_entry.bind('<Key>', self.set_pgn_manually_set)
-        browse_button = ttk.Button(self, text="Bladeren Output...", command=self.browse_pgn_file)
+        browse_button = ttk.Button(self, text="Browse Output...", command=self.browse_pgn_file)
         browse_button.grid(row=row_index, column=2, sticky="e", padx=(0, 10), pady=5)
         row_index += 1
 
@@ -882,48 +886,48 @@ class AnnotatorGUI(tk.Tk):
         ttk.Label(self, text="Game Filter (-f):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
         filter_combobox = ttk.Combobox(self, textvariable=self.filter_var, values=self.default_filters, width=80)
         filter_combobox.grid(row=row_index, column=1, sticky="ew", padx=10, pady=5)
-        ttk.Label(self, text="Bijv: Player:Carlsen;Result:1-0").grid(row=row_index, column=2, sticky="w", padx=(0, 10), pady=5)
+        ttk.Label(self, text="E.g: Player:Carlsen;Result:1-0").grid(row=row_index, column=2, sticky="w", padx=(0, 10), pady=5)
         row_index += 1
 
         # 4. ENGINE Combobox
-        ttk.Label(self, text="Engine Pad (-e):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
+        ttk.Label(self, text="Engine Path (-e):").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
 
         self.engine_combobox = ttk.Combobox(self,
-                                            textvariable=self.engine_var,
-                                            values=self.default_engine_display_names, # Gebruik alleen de weergavenamen
-                                            width=80)
+                                             textvariable=self.engine_var,
+                                             values=self.default_engine_display_names, # Use only the display names
+                                             width=80)
         self.engine_combobox.grid(row=row_index, column=1, sticky="ew", padx=10, pady=5)
 
         self.engine_combobox.bind("<<ComboboxSelected>>", self.on_engine_selected)
 
-        browse_engine_button = ttk.Button(self, text="Bladeren Engine...", command=self.browse_engine_file)
+        browse_engine_button = ttk.Button(self, text="Browse Engine...", command=self.browse_engine_file)
         browse_engine_button.grid(row=row_index, column=2, sticky="e", padx=(0, 10), pady=5)
         row_index += 1
 
         # 5. GAMETIME Entry
-        ttk.Label(self, text="Analyse Tijd (-t) [sec]:").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
+        ttk.Label(self, text="Analysis Time (-t) [sec]:").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
         gametime_entry = ttk.Entry(self, textvariable=self.gametime_var, width=10)
         gametime_entry.grid(row=row_index, column=1, sticky="w", padx=10, pady=5)
         row_index += 1
 
-        # 6. Start- en Analyseknoppen (NIEUWE RIJ MET TWEE KNOPPEN)
+        # 6. Start and Analysis Buttons (NEW ROW WITH TWO BUTTONS)
         button_frame = ttk.Frame(self)
         button_frame.grid(row=row_index, column=0, columnspan=3, sticky="ew", padx=10, pady=15)
-        button_frame.columnconfigure(0, weight=1) # Voor Start Knop
-        button_frame.columnconfigure(1, weight=1) # Voor Analyse Knop
+        button_frame.columnconfigure(0, weight=1) # For Start Button
+        button_frame.columnconfigure(1, weight=1) # For Analysis Button
 
-        # Start Knop (Engine Analyse)
-        self.start_button = ttk.Button(button_frame, text="Start Analyse (Engine)", command=self.run_annotate_start)
+        # Start Button (Engine Analysis)
+        self.start_button = ttk.Button(button_frame, text="Start Analysis (Engine)", command=self.run_annotate_start)
         self.start_button.grid(row=0, column=0, sticky="ew", padx=(0, 5))
 
-        # NIEUWE KNOP (Statistieken Analyse)
-        self.analyze_button = ttk.Button(button_frame, text="Analyse PGN (Statistieken)", command=self.run_pgn_analysis)
+        # NEW BUTTON (Statistics Analysis)
+        self.analyze_button = ttk.Button(button_frame, text="Analyze PGN (Statistics)", command=self.run_pgn_analysis)
         self.analyze_button.grid(row=0, column=1, sticky="ew", padx=(5, 0))
 
         row_index += 1
 
-        # 7. Statuslabel
-        self.status_var = tk.StringVar(value="Wacht op configuratie of druk op Start.")
+        # 7. Status Label
+        self.status_var = tk.StringVar(value="Waiting for configuration or press Start.")
         status_label = ttk.Label(self, textvariable=self.status_var, relief=tk.SUNKEN, anchor="w")
         status_label.grid(row=row_index, column=0, columnspan=3, sticky="ew", padx=10, pady=(5, 10), ipady=5)
         row_index += 1
@@ -931,10 +935,10 @@ class AnnotatorGUI(tk.Tk):
         # --- Console Output ---
 
         # 8. Console Label
-        ttk.Label(self, text="Analyse Logboek:").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
+        ttk.Label(self, text="Analysis Log:").grid(row=row_index, column=0, sticky="w", padx=10, pady=5)
         row_index += 1
 
-        # 9. Console Text Widget met Scrollbar (Frame voor layout)
+        # 9. Console Text Widget with Scrollbar (Frame for layout)
         console_frame = ttk.Frame(self)
         console_frame.grid(row=row_index, column=0, columnspan=3, sticky="nsew", padx=10, pady=(0, 10))
         console_frame.columnconfigure(0, weight=1)
@@ -967,52 +971,58 @@ def setup_logging(args):
             logger.setLevel(logging.INFO)
 
 
-# Definieer een score die altijd groter is dan elke centipawn-evaluatie,
-# maar kleiner dan een werkelijke matscore.
-# Dit is de 'magische' grens die wordt gebruikt om DTM te vertalen naar CP.
+# Define a score that is always greater than any centipawn evaluation,
+# but smaller than an actual mate score.
+# This is the 'magic' boundary used to translate DTM to CP.
 MAX_CP_SCORE = 20000
+# Assuming this is defined elsewhere in the user's actual code
+# NEEDS_ANNOTATION_THRESHOLD = 10
+# ERROR_THRESHOLD = {"BLUNDER": -300, "MISTAKE": -100, "DUBIOUS": -50}
+# SHORT_PV_LEN = 10
+# MAX_CPL = 500
+# logger = logging.getLogger(__name__) # Assuming a logger is defined
 
 def eval_numeric(result: chess.engine.AnalysisResult, board_turn: chess.Color) -> int:
     """
-    Vertaalt het resultaat van engine.analyse() naar een universele numerieke score
-    (centipionnen) vanuit het perspectief van de speler die aan zet is.
+    Translates the result of engine.analyse() to a universal numeric score
+    (centipawns) from the perspective of the player to move.
 
-    - Als de engine Mat in N vindt (DTM), wordt dit geconverteerd naar een
-      numerieke score met behulp van MAX_CP_SCORE.
-    - Anders wordt de centipawn (CP) waarde geretourneerd.
+    - If the engine finds Mate in N (DTM), this is converted to a
+      numeric score using MAX_CP_SCORE.
+    - Otherwise, the centipawn (CP) value is returned.
 
     Args:
-        result: Het resultaat van await engine.analyse().
-        board_turn: De kleur van de speler wiens evaluatie we willen (True voor Wit, False voor Zwart).
+        result: The result of await engine.analyse().
+        board_turn: The color of the player whose evaluation we want (True for White, False for Black).
 
     Returns:
-        De numerieke evaluatie in centipionnen.
+        The numeric evaluation in centipawns.
     """
 
-    # 1. Haal de score op. We gebruiken .pov(board_turn) om de score altijd
-    #    vanuit het perspectief van de speler die aan zet is te krijgen.
+    # 1. Get the score.
+    # We use .pov(board_turn) to always get the score from the perspective of the player to move.
     score = result.get("score").pov(board_turn)
 
     if score.is_mate():
         dtm = score.mate()
 
         if dtm > 0:
-            # Winst in N zetten (bijv. Mat in 3): hoe kleiner N, hoe hoger de score.
-            # (MAX_CP_SCORE - 1) is beter dan 10000 CP.
+            # Win in N moves (e.g., Mate in 3): the smaller N, the higher the score.
+            # (MAX_CP_SCORE - 1) is better than 10000 CP.
             return MAX_CP_SCORE - abs(dtm)
         elif dtm < 0:
-            # Verlies in N zetten (bijv. Gemateerd in 3): hoe kleiner N, hoe lager de score.
-            # (-MAX_CP_SCORE - 1) is slechter dan -10000 CP.
+            # Loss in N moves (e.g., Mated in 3): the smaller N, the lower the score.
+            # (-MAX_CP_SCORE - 1) is worse than -10000 CP.
             return -(MAX_CP_SCORE - abs(dtm))
         else:
-            # Zou niet moeten gebeuren tenzij er al Mat is, maar voor de zekerheid.
+            # Should not happen unless Mate is already achieved, but for safety.
             return 0
 
     elif score.cp is not None:
-        # Als we een normale centipawn score hebben (geen DTM), retourneer deze.
+        # If we have a normal centipawn score (no DTM), return it.
         return score.cp
 
-    # Afhandeling voor onverwachte gevallen (bijv. engine geeft geen score)
+    # Handling for unexpected cases (e.g., engine provides no score)
     raise RuntimeError("Engine evaluation result was unintelligible or missing score.")
 
 def eval_human(white_to_move: chess.Color, result: chess.engine.AnalysisResult) -> str:
@@ -1022,59 +1032,54 @@ def eval_human(white_to_move: chess.Color, result: chess.engine.AnalysisResult) 
         - If depth-to-mate was not found, return an absolute numeric evaluation (e.g. "+1.50")
 
     Args:
-        white_to_move: De kleur van de speler wiens beurt het was (de speler NA wie de zet wordt geëvalueerd).
-                       Dit is cruciaal voor de absolute evaluatie.
-        result: Het resultaat van await engine.analyse() na de zet.
+        white_to_move: The color of the player whose move it was (the player AFTER whom the move is evaluated).
+                       This is crucial for the absolute evaluation.
+        result: The result of await engine.analyse() after the move.
 
     Returns:
-        Een menselijk leesbare string.
+        A human-readable string.
     """
 
-    # 1. Haal de score op
+    # 1. Get the score
     score = result.get("score")
 
     if score is None:
-        return "Geen score beschikbaar"
+        return "No score available"
 
-    # Gebruik .pov(white_to_move) om de score te krijgen vanuit het perspectief
-    # van de speler die de zet deed (in de 'judge_move' functie is dit de speler
-    # die net de zet heeft uitgevoerd, of de speler die aan zet is).
-    # Voor de annotatie willen we de ABSOLUTE score vanuit het oogpunt van Wit.
-
-    # De score in het resultaat is altijd POV van de speler die de beurt had
-    # TOEN de analyse begon (dus de huidige board.turn).
-    # We converteren deze naar het perspectief van WIT (chess.WHITE).
+    # The score in the result is always POV of the player who was to move
+    # WHEN the analysis began (i.e., the current board.turn).
+    # We convert this to the perspective of WHITE (chess.WHITE).
     score_for_white = score.pov(chess.WHITE)
 
     if score_for_white.is_mate():
         dtm = score_for_white.mate()
-        # dtm is het aantal zetten tot mat. abs(dtm) is het aantal *plies*.
-        # De engine geeft de score als plies, dus delen door 2 voor zetten.
+        # dtm is the number of plies to mate. abs(dtm) is the number of *plies*.
+        # The engine gives the score in plies, so divide by 2 for moves.
         moves_to_mate = abs(dtm) / 2
 
-        # Geef de naam van de winnende kleur
-        winning_color = "Wit" if dtm > 0 else "Zwart"
+        # Give the name of the winning color (unused but translated for completeness)
+        winning_color = "White" if dtm > 0 else "Black"
 
-        # Aangezien DTM in plies is, zorgen we dat we hele nummers tot mat tonen.
-        # Een mat in 1 (2 plies) is M2, dus '1 zet'.
+        # Since DTM is in plies, we ensure we show whole numbers to mate.
+        # A mate in 1 (2 plies) is M2, so '1 move'.
         if moves_to_mate >= 1:
-            return f"Mat in {int(moves_to_mate)}"
+            return f"Mate in {int(moves_to_mate)}"
         else:
-             # Dit zou Mat in 0 betekenen (wat al gebeurd is)
-             return "Mat"
+            # This would mean Mate in 0 (which has already happened)
+            return "Mate"
 
     elif score_for_white.cp is not None:
-        # We hebben een centipawn score, converteer naar pionnen (gedeeld door 100)
+        # We have a centipawn score, convert to pawns (divided by 100)
         score_in_pawns = score_for_white.cp / 100
 
-        # Gebruik de absolute evaluatie (deze is al vanuit het oogpunt van Wit,
-        # dus we hoeven alleen te formatteren).
+        # Use the absolute evaluation (this is already from White's perspective,
+        # so we only need to format).
 
-        # Voeg het + teken toe voor een duidelijke weergave van voordeel voor wit
+        # Add the + sign for a clear display of advantage for White
         format_string = '{:+.2f}'
         return format_string.format(score_in_pawns)
 
-    # Als de engine een resultaat retourneert zonder score
+    # If the engine returns a result without a score
     raise RuntimeError("Engine evaluation result was unintelligible or missing score.")
 
 
@@ -1108,6 +1113,7 @@ def needs_annotation(judgment):
     played = winning_chances(int(judgment["playedeval"]))
     delta = abs(best - played)
 
+    # NOTE: Assuming NEEDS_ANNOTATION_THRESHOLD is defined elsewhere (e.g., 10)
     return delta > NEEDS_ANNOTATION_THRESHOLD or best > played
 
 
@@ -1119,33 +1125,33 @@ async def judge_move(board: chess.Board, played_move: chess.Move, engine: chess.
     Returns a judgment dictionary.
     """
 
-    # De engine.analyse() methode stelt de FEN automatisch in via het 'board' argument.
+    # The engine.analyse() method automatically sets the FEN via the 'board' argument.
     analysis_limit = chess.engine.Limit(time=searchtime_s / 2)
     judgment = {}
 
-    # --- DE ONJUISTE REGEL IS VERWIJDERD ---
+    # --- THE INCORRECT LINE HAS BEEN REMOVED ---
     # await engine.set_fen(board.fen())
-    # -------------------------------------
+    # -----------------------------------------
 
-    # Eerste analyse: Bepaal de beste zet en de evaluatie vóór de gespeelde zet
+    # First analysis: Determine the best move and the evaluation before the played move
     # =========================================================================
     try:
-        # De 'board' parameter zorgt ervoor dat de engine gesynchroniseerd wordt
+        # The 'board' parameter ensures the engine is synchronized
         best_move_result = await engine.analyse(
             board,
             limit=analysis_limit,
-            info=chess.engine.Info(chess.engine.Info.ALL) # Vraag alle info op
+            info=chess.engine.Info(chess.engine.Info.ALL) # Request all info
         )
     except chess.engine.EngineTerminatedError:
-        # Foutafhandeling voor als de engine plots stopt
+        # Error handling for if the engine suddenly stops
         return {"error": "Engine terminated during analysis"}
 
-    # Valideer dat de engine een zet en score heeft gevonden
+    # Validate that the engine found a move and a score
     if not best_move_result.get("pv"):
-          return {"error": "Engine found no primary variation (PV)"}
+        return {"error": "Engine found no primary variation (PV)"}
 
 
-    # Vul het 'bestmove' deel van de 'judgment'
+    # Populate the 'bestmove' part of the 'judgment'
     judgment["bestmove"] = best_move_result.get("pv")[0]
     judgment["besteval"] = eval_numeric(best_move_result, board.turn)
     judgment["pv"] = best_move_result.get("pv")
@@ -1154,20 +1160,20 @@ async def judge_move(board: chess.Board, played_move: chess.Move, engine: chess.
     # Annotate the best move
     judgment["bestcomment"] = eval_human(board.turn, best_move_result)
 
-    # Tweede analyse: Evaluatie van de gespeelde zet
+    # Second analysis: Evaluation of the played move
     # =========================================================================
 
-    # Als de gespeelde zet de beste zet is, hoeven we niet opnieuw te analyseren
+    # If the played move is the best move, we don't need to analyze again
     if played_move == judgment["bestmove"]:
         judgment["playedeval"] = judgment["besteval"]
     else:
-        # Maak een kopie van het bord en speel de zet
+        # Make a copy of the board and play the move
         temp_board = board.copy()
         temp_board.push(played_move)
 
-        # Voer de analyse uit op de NÍEUWE positie (na de gespeelde zet)
+        # Perform the analysis on the NEW position (after the played move)
         played_move_result = await engine.analyse(
-            temp_board, # Dit stelt de engine in op de positie NA de zet
+            temp_board, # This sets the engine to the position AFTER the move
             limit=analysis_limit,
             info=chess.engine.Info(chess.engine.Info.SCORE)
         )
@@ -1176,7 +1182,7 @@ async def judge_move(board: chess.Board, played_move: chess.Move, engine: chess.
 
 
     # Annotate the played move
-    # Gebruik de resultaten van de tweede analyse (of de eerste als de zet de beste was)
+    # Use the results of the second analysis (or the first if the move was the best)
     result_to_comment = played_move_result if played_move != judgment["bestmove"] else best_move_result
     judgment["playedcomment"] = eval_human(board.turn, result_to_comment)
 
@@ -1188,6 +1194,7 @@ def get_nags(judgment):
     Returns a Numeric Annotation Glyph (NAG) according to how much worse the
     played move was vs the best move
     """
+    # NOTE: Assuming ERROR_THRESHOLD is defined elsewhere
     if "besteval" in judgment and "playedeval" in judgment:
         delta = judgment["playedeval"] - judgment["besteval"]
 
@@ -1236,13 +1243,16 @@ def truncate_pv(board, pv):
     If the pv ends the game, return the full pv
     Otherwise, return the pv truncated to 10 half-moves
     """
+    # NOTE: Assuming SHORT_PV_LEN is defined elsewhere (e.g., 10)
 
+    # We need a copy of the board to check for game end without modifying the original
+    temp_board = board.copy()
     for move in pv:
-        if not board.is_legal(move):
+        if not temp_board.is_legal(move):
             raise AssertionError
-        board.push(move)
+        temp_board.push(move)
 
-    if board.is_game_over(claim_draw=True):
+    if temp_board.is_game_over(claim_draw=True):
         return pv
     else:
         return pv[:SHORT_PV_LEN]
@@ -1259,7 +1269,8 @@ def add_annotation(node, judgment):
         node.comment = judgment["playedcomment"]
 
     # Get the engine primary variation
-    variation = truncate_pv(prev_node.board(), judgment["pv"])
+    # The board is passed to truncate_pv to correctly check for game end
+    variation = truncate_pv(prev_node.board().copy(), judgment["pv"])
 
     # Add the engine's primary variation as an annotation
     prev_node.add_line(moves=variation)
@@ -1281,9 +1292,9 @@ def classify_fen(fen, ecodb):
     Returns a classification
 
     A classfication is a dictionary containing the following elements:
-        "code":         The ECO code of the matched opening
-        "desc":         The long description of the matched opening
-        "path":         The main variation of the opening
+        "code":           The ECO code of the matched opening
+        "desc":           The long description of the matched opening
+        "path":           The main variation of the opening
     """
     classification = {}
     classification["code"] = ""
@@ -1295,6 +1306,7 @@ def classify_fen(fen, ecodb):
             classification["code"] = opening['c']
             classification["desc"] = opening['n']
             classification["path"] = opening['m']
+            break # Optimization: stop once a match is found
 
     return classification
 
@@ -1316,7 +1328,7 @@ def debug_print(node, judgment):
     """
     Prints some debugging info about a position that was just analyzed
     """
-
+    # NOTE: Assuming 'logger' is defined elsewhere, the strings are translated.
     logger.debug(node.board())
     logger.debug(node.board().fen())
     logger.debug("Played move: %s", format(node.parent.board().san(node.move)))
@@ -1340,10 +1352,10 @@ def cpl(string):
     """
     Centipawn Loss
     Takes a string and returns an integer representing centipawn loss of the
-    move We put a ceiling on this value so that big blunders don't skew the
+    move. We put a ceiling on this value so that big blunders don't skew the
     acpl too much
     """
-
+    # NOTE: Assuming MAX_CPL is defined elsewhere (e.g., 500)
     cpl = int(string)
 
     return min(cpl, MAX_CPL)
@@ -1358,7 +1370,6 @@ def acpl(cpl_list):
         return sum(cpl_list) / len(cpl_list)
     except ZeroDivisionError:
         return 0
-
 
 def clean_game(game):
     """
@@ -1514,7 +1525,7 @@ async def analyze_game(game, arg_gametime, engine, threads):
         return
 
 
-    # ... (rest van de initialisatie logic) ...
+    # ... (rest of the initialization logic) ...
 
     # Start keeping track of the root node
     root_node = game.end()
@@ -1544,7 +1555,7 @@ async def analyze_game(game, arg_gametime, engine, threads):
             prev_node = node.parent
 
             try:
-                # WIJZIGING 6: judge_move moet nu AWAIT gebruiken en info_handler VERWIJDERD
+                # CHANGE 6: judge_move must now use AWAIT and info_handler REMOVED
                 judgment = await judge_move(prev_node.board(), node.move, engine, time_per_move)
 
                 # Record the delta, to be referenced in the second pass
@@ -1557,18 +1568,18 @@ async def analyze_game(game, arg_gametime, engine, threads):
                 # Print some debugging info
                 debug_print(node, judgment)
             except chess.engine.EngineError as e:
-                # Log de fout netjes in uw eigen applicatie.
+                # Log the error cleanly in your own application.
                 move_uci = node.move.uci()
                 board_fen = prev_node.board().fen()
-                logger.warning(f"EngineError voor zet {move_uci} op FEN {board_fen}. Fout: {e}")
+                logger.warning(f"EngineError for move {move_uci} on FEN {board_fen}. Error: {e}")
 
-                # U kunt hier beslissen of u de zet overslaat (zoals u deed met 'pass'),
-                # of een standaard 'judgment' toewijst.
-                node.comment = "Overslagen wegens engine fout."
+                # You can decide here whether to skip the move (as done with 'pass'),
+                # or assign a default 'judgment'.
+                node.comment = "Skipped due to engine error."
 
             except Exception as e:
-                # Vang andere onverwachte fouten op die niet van de engine komen
-                logger.error(f"Onverwachte fout tijdens analyse: {e}")
+                # Catch other unexpected errors that do not originate from the engine
+                logger.error(f"Unexpected error during analysis: {e}")
                 return
 
             node = prev_node
@@ -1576,7 +1587,7 @@ async def analyze_game(game, arg_gametime, engine, threads):
         # Calculate the average centipawn loss (ACPL) for each player
         game = add_acpl(game, root_node)
     except Exception as e:
-        print(f"Fatale fout tijdens de analyse: {e}")
+        print(f"Fatal error during analysis: {e}")
         return
 
     ###########################################################################
@@ -1585,12 +1596,12 @@ async def analyze_game(game, arg_gametime, engine, threads):
 
     pass2_budget = get_pass2_budget(budget, pass1_budget)
 
-    # ... (logica voor het bepalen van time_per_move in pass 2) ...
-    # Vereenvoudigd:
+    # ... (logic for determining time_per_move in pass 2) ...
+    # Simplified:
     try:
         time_per_move = pass2_budget / error_count
     except ZeroDivisionError:
-        # ... (error handling voor geen fouten) ...
+        # ... (error handling for no errors) ...
         pass
 
 
@@ -1605,7 +1616,7 @@ async def analyze_game(game, arg_gametime, engine, threads):
         judgment = node.comment
 
         if needs_annotation(judgment):
-            # WIJZIGING 6: judge_move moet nu AWAIT gebruiken en info_handler VERWIJDERD
+            # CHANGE 6: judge_move must now use AWAIT and info_handler REMOVED
             judgment = await judge_move(prev_node.board(), node.move, engine, time_per_move)
 
             # Verify that the engine still dislikes the played move
@@ -1621,11 +1632,11 @@ async def analyze_game(game, arg_gametime, engine, threads):
 
         node = prev_node
 
-    # Toegang tot de identificatiegegevens (.id is een dictionary)
+    # Accessing identification data (.id is a dictionary)
     engine_id = engine.id
 
-    # Haal de belangrijkste naam op (bijv. "Stockfish 17")
-    engine_name = engine_id.get("name", "Niet gevonden")
+    # Get the primary name (e.g., "Stockfish 17")
+    engine_name = engine_id.get("name", "Not found")
 
     node.root().comment = engine_name
     node.root().headers["Annotator"] = engine_name
@@ -1647,47 +1658,61 @@ def checkgame(game):
 
     # Try to verify that the PGN file was readable
     if game.end().parent is None:
-        errormsg = "Could not render the board. Is the file legal PGN?" \
-            "Aborting..."
+        errormsg = "Could not render the board. Is the file legal PGN? Aborting..."
         logger.critical(errormsg)
         return False
     return True
 
 def change_nags(pgn):
-    """"
-    blunder: 4 MISTAKE: 2 DUBIOUS: 6"""
+    """
+    Reformat PGN string to change NAGs (Numeric Annotation Glyphs) and ensure line wrapping.
+    NAGs: blunder: $4 MISTAKE: $2 DUBIOUS: $6
+    """
     pgn = str(pgn)
+    # The following NAG replacements are commented out in the original, keeping them commented
     # pgn = pgn.replace("$6 {", "{Dubious ")
     # pgn = pgn.replace("$2 {", "{Mistake ")
     # pgn = pgn.replace("$4 {", "{Blunder ")
     # pgn = pgn.replace("$7 {", "{Good ")
     # pgn = pgn.replace("$9 {", "{Brilliant ")
+
+    # Standardize spaces and split into lines
     strs = pgn.replace("  ", " ").split("\n")
     res = []
+    # Process the first line (usually headers or FEN)
     res.append(strs.pop(0))
+
+    # Re-wrap lines to a maximum of 80 characters, preserving header lines
     for line in strs:
         if len(line) < 80 or line.startswith("["):
             res.append(line)
         else:
             line_strs = line.split(" ")
-            hl = ""
+            hl = "" # current line buffer
             for word in line_strs:
+                # Check if the word fits on the current line or if it's a closing bracket
                 if len(hl) + len(word) < 80 or word == "}" or word == ")":
                     sep = " "
                     if len(hl) == 0:
                         sep = ""
                     hl = hl + sep + word
                 else:
+                    # Current line is full, start a new line
                     res.append(hl)
                     hl = word
+            # Append any remaining content in the buffer
             if len(hl) > 0:
                 res.append(hl)
+
     pgn = "\n".join(res)
     return pgn
-def start_analise(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file=True, num_threads=2):
-    return asyncio.run(start_analise_async(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file, num_threads))
 
-async def start_analise_async(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file=True, num_threads=2):
+def start_analysis(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file=True, num_threads=2):
+    """Synchronous wrapper to start asynchronous analysis."""
+    # Note: loop closing logic removed as it's generally handled by asyncio.run
+    return asyncio.run(start_analysis_async(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file, num_threads))
+
+async def start_analysis_async(pgnfile, engine_path, fine_name_file, add_to_library, gui, save_file=True, num_threads=2):
     engine = await get_engine(engine_path, num_threads)
 
     analyzed_game = ""
@@ -1700,7 +1725,7 @@ async def start_analise_async(pgnfile, engine_path, fine_name_file, add_to_libra
             chess_game = chess.pgn.read_game(pgn_io)
             try:
                 analyzed_game = await analyze_game(chess_game, 1,
-                                            engine, num_threads)
+                                                   engine, num_threads)
 
             except KeyboardInterrupt:
                 logger.critical("\nReceived KeyboardInterrupt.")
@@ -1715,43 +1740,40 @@ async def start_analise_async(pgnfile, engine_path, fine_name_file, add_to_libra
                 new_filename = pgnfile[:-4] + "-annotated.pgn"
                 annotated_content = str(analyzed_game)
 
-                # Schrijf naar de bestanden
+                # Write to the files
                 if not add_to_library:
-                    # Bestand 1: annotated_game.pgn
+                    # File 1: annotated_game.pgn
                     with open(os.path.join(gui.preferences.preferences["default_png_dir"], new_filename), 'w') as file1:
                         file1.writelines(annotated_content)
-                    # Bestand 2: fine_name_file
+                    # File 2: fine_name_file
                     with open(fine_name_file, 'w') as file2:
                         file2.writelines(annotated_content)
 
                 if add_to_library:
-                    # Voeg toe aan library.pgn
+                    # Append to library.pgn
                     with open(os.path.join(gui.default_png_dir, "library.pgn"), 'a') as file3:
                         file3.writelines('\n\n' + annotated_content)
 
-    # --- 3. CLEANUP (Optioneel maar Aangeraden) ---
-    # Sluit de event loop af
-    if loop.is_running():
-        loop.stop()
-    if not loop.is_closed():
-        loop.close()
+    # Clean up (Optional but Recommended)
+    # The original cleanup logic was flawed because `loop` was not defined.
+    # Await `engine.quit()` is the essential cleanup.
     engine.quit()
 
     return analyzed_game
 
 def pgn_text_iterator(filepath: str) -> Iterator[str]:
     """
-    Leest een groot tekstbestand en itereert over items die gescheiden zijn
-    door een regel die begint met '[Event'.
+    Reads a large text file and iterates over items (games) that are separated
+    by a line starting with '[Event'.
 
-    Deze functie is een generator: hij leest het bestand niet in zijn geheel
-    in het geheugen, wat essentieel is voor zeer grote bestanden.
+    This function is a generator: it does not read the entire file into memory,
+    which is essential for very large files.
 
     Args:
-        filepath: Het pad naar het PGN-achtige tekstbestand.
+        filepath: The path to the PGN-like text file.
 
     Yields:
-        Een string die één compleet item (game) bevat.
+        A string containing one complete item (game).
     """
     current_item_lines = []
 
@@ -1760,30 +1782,30 @@ def pgn_text_iterator(filepath: str) -> Iterator[str]:
             for line in f:
                 stripped_line = line.strip()
 
-                # Controleer of de regel de start van een nieuw item aangeeft
+                # Check if the line indicates the start of a new item
                 if stripped_line.startswith('[Event '):
-                    # Als de buffer niet leeg is, is het vorige item compleet.
+                    # If the buffer is not empty, the previous item is complete.
                     if current_item_lines:
-                        # De buffer samenvoegen en opleveren (yield)
+                        # Combine and yield the buffer
                         yield "".join(current_item_lines).strip()
 
-                        # Buffer legen en het nieuwe item (de [Event-regel) toevoegen
+                        # Clear buffer and add the new item (the [Event line)
                         current_item_lines = [line]
                     else:
-                        # Dit is de eerste regel van het bestand
+                        # This is the first line of the file
                         current_item_lines.append(line)
                 else:
-                    # Voeg de regel toe aan het huidige item
+                    # Add the line to the current item
                     current_item_lines.append(line)
 
-            # Na de lus: het allerlaatste verzamelde item opleveren
+            # After the loop: yield the very last collected item
             if current_item_lines:
                 yield "".join(current_item_lines).strip()
 
     except FileNotFoundError:
-        print(f"Fout: Bestand niet gevonden op '{filepath}'")
+        print(f"Error: File not found at '{filepath}'")
     except Exception as e:
-        print(f"Er is een onverwachte fout opgetreden tijdens het lezen: {e}")
+        print(f"An unexpected error occurred while reading: {e}")
 
 async def get_engine(enginepath, threads):
     engine_name = ""
@@ -1793,12 +1815,12 @@ async def get_engine(enginepath, threads):
     ###########################################################################
 
     try:
-        # WIJZIGING 2: Bewaar het transport-object globaal
+        # CHANGE 2: Store the transport object globally (Note: `engine_transport` is unused in the return)
         engine_transport, engine = await chess.engine.popen_uci(enginepath)
         await engine.configure({
             "Threads": threads
         })
-        previous_enginepath = enginepath
+        # previous_enginepath = enginepath # This variable is not used in this scope
     except FileNotFoundError:
         errormsg = "Engine '{}' was not found. Aborting...".format(enginepath)
         logger.critical(errormsg)
@@ -1811,27 +1833,28 @@ async def get_engine(enginepath, threads):
 
     return engine
 
-# --- HOOFD EXECUTIE PUNT (Synchronous Wrapper) ---
+# --- MAIN EXECUTION POINT (Synchronous Wrapper) ---
 
 def run_annotate(pgnfile: str, enginepath: str, gametime: int, threads: int, filter_str: str, outputfile: str):
-    """Synchronous wrapper om de async functie aan te roepen."""
-    # Dit is het enige punt waar asyncio.run() moet worden gebruikt.
+    """Synchronous wrapper to call the async function."""
+    # This is the only point where asyncio.run() should be used.
     try:
         asyncio.run(run_annotate_async(pgnfile, enginepath, gametime, threads, filter_str, outputfile))
-        return True # Succes
+        return True # Success
     except KeyboardInterrupt:
-        logger.critical("Process afgebroken door gebruiker (KeyboardInterrupt).")
+        logger.critical("Process aborted by user (KeyboardInterrupt).")
     except Exception as e:
-        logger.critical(f"FATALE FOUT: {e}")
+        logger.critical(f"FATAL ERROR: {e}")
         return False
 
 def valid_engine(engine_path):
-    if engine_path == 'Niet Gespecificeerd' or engine_path == '':
-                        return False
+    if engine_path == 'Niet Gespecificeerd' or engine_path == '' or engine_path == 'Not Specified':
+        return False
     else:
         return True
 
 async def run_annotate_async(pgnfile, engine_path, gametime,threads, filter_str, outputfile):
+    engine = None
     try:
         if valid_engine(engine_path):
             engine = await get_engine(engine_path, threads)
@@ -1840,57 +1863,70 @@ async def run_annotate_async(pgnfile, engine_path, gametime,threads, filter_str,
         new_filename = outputfile
         if outputfile == "":
             new_filename = pgnfile[:-4] + "-annotated.pgn"
-        file1 = open(new_filename, 'w')
-        file1.close()
+        # Truncate/create the output file
+        with open(new_filename, 'w') as file1:
+            file1.close()
 
         for item in pgn_text_iterator(pgnfile):
             pgn_io = io.StringIO(item.strip())
             chess_game = chess.pgn.read_game(pgn_io)
 
-            white_player = chess_game.headers.get('White', 'Onbekend')
-            black_player = chess_game.headers.get('Black', 'Onbekend')
-            event_name = chess_game.headers.get('Event', 'Onbekend Evenement')
+            white_player = chess_game.headers.get('White', 'Unknown')
+            black_player = chess_game.headers.get('Black', 'Unknown')
+            event_name = chess_game.headers.get('Event', 'Unknown Event')
             processed_count += 1
 
-            # TOEPASSEN VAN HET FILTER
-            if filter_str and not matches_filter(chess_game, filter_str):
+            # APPLYING THE FILTER
+            if filter_str and filter_str != "None" and not matches_filter(chess_game, filter_str):
                 filtered_count += 1
-                continue # Ga naar de volgende game
+                continue # Skip to the next game
 
-            # --- VOORTGANGSBERICHT ALLEEN VOOR GESELECTEERDE GAMES ---
-            print(f"\n--- Game verwerkt (Filter OK): {white_player} vs {black_player} ({event_name}) ---")
+            # --- PROGRESS MESSAGE ONLY FOR SELECTED GAMES ---
+            print(f"\n--- Game processing (Filter OK): {white_player} vs {black_player} ({event_name}) ---")
 
             try:
                 if valid_engine(engine_path):
                     analyzed_game = await analyze_game(chess_game, gametime,
-                                            engine, threads)
+                                                       engine, threads)
             except KeyboardInterrupt:
                 logger.critical("\nReceived KeyboardInterrupt.")
                 raise
             except Exception as e:
                 logger.critical("\nAn unhandled exception occurred: {}"
-                                .format(type(e)))
+                                 .format(type(e)))
                 raise e
             else:
                 print(analyzed_game, '\n')
-                file1 = open(new_filename, 'a')
-                file1.writelines(str(analyzed_game))
-                #write one empty line to file1
-                file1.write('\n\n')
-                file1.close()
-        if valid_engine(engine_path):
+                with open(new_filename, 'a') as file1:
+                    file1.writelines(str(analyzed_game))
+                    # write one empty line to file1
+                    file1.write('\n\n')
+
+        if valid_engine(engine_path) and engine:
             await engine.quit()
 
         if processed_count > 1:
-            print(f"\n--- Resultaten ---")
-            print(f"Totaal {processed_count} games gevonden in de bron.")
-            print(f"Games overgeslagen door filter: {filtered_count}")
-            print(f"Games verwerkt en opgeslagen: {processed_count - filtered_count}")
+            print(f"\n--- Results ---")
+            print(f"Total {processed_count} games found in the source.")
+            print(f"Games skipped by filter: {filtered_count}")
+            print(f"Games processed and saved: {processed_count - filtered_count}")
 
     except PermissionError:
         errormsg = "Input file not readable. Aborting..."
         logger.critical(errormsg)
         raise
+    except FileNotFoundError:
+        errormsg = f"Input file '{pgnfile}' not found. Aborting..."
+        logger.critical(errormsg)
+        raise
+    finally:
+        # Ensure engine is quit even if an error occurs outside the loop
+        if engine and valid_engine(engine_path):
+            try:
+                engine.quit()
+            except Exception:
+                pass # Ignore if engine is already closed
+
 
 def main():
     """
@@ -1901,28 +1937,26 @@ def main():
     """
     args = parse_args()
     setup_logging(args)
-    # engine = args.engine.split()
-    gui = args.gui
+    gui_mode = args.gui
     outputfile = args.outputfile
     if args.filter:
         filter_str = args.filter
     else:
-        filter_str =  "Geen"
-    engine = args.engine # Nieuw
-    gametime = args.gametime # Nieuw
+        filter_str = "None"
+    engine_path = args.engine # New
+    gametime = args.gametime # New
     threads = args.threads
 
 
     pgnfile = args.file
-    if gui: # Start de GUI als de vlag is ingesteld
-        # Geef de CLI-argumenten door aan de GUI om de startwaarden in te vullen
-        app = AnnotatorGUI(filter_str, engine, gametime)
+    if gui_mode: # Start the GUI if the flag is set
+        # Pass the CLI arguments to the GUI to populate initial values
+        app = AnnotatorGUI(filter_str, engine_path, gametime)
         app.mainloop()
     else:
-        run_annotate(pgnfile, engine, gametime, threads, filter_str, outputfile)
+        run_annotate(pgnfile, engine_path, gametime, threads, filter_str, outputfile)
 
 
 if __name__ == "__main__":
     main()
 
-# vim: ft=python expandtab smarttab shiftwidth=4 softtabstop=4
