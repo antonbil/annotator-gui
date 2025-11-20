@@ -32,6 +32,8 @@ import chess.pgn
 import chess.engine
 import asyncio
 import chess.variant
+import json
+from pathlib import Path
 
 print(f"--- Debugging in: {__file__} ---")
 print(f"Current Working Directory: {os.getcwd()}")
@@ -578,7 +580,9 @@ class PGNStatsView:
 # ----------------------------------------------------------------------
 # TKINTER GUI CLASS
 # ----------------------------------------------------------------------
-
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_FILENAME = "settings/configuration.json"
+CONFIG_FILE_PATH = BASE_DIR / CONFIG_FILENAME
 class AnnotatorGUI(tk.Tk):
     def __init__(self, initial_filter, initial_engine_path, initial_gametime):
         super().__init__()
@@ -591,15 +595,32 @@ class AnnotatorGUI(tk.Tk):
         self.original_stdout = sys.stdout
         self.console_handler = None
 
-        # --- DEFINE ENGINE MAPPING ---
-        self.default_pgn_dir = os.path.join(os.path.expanduser("~"), "Schaken")
+        ## 1. Read configuration data
+        config_data = self._load_config()
 
-        # 1. List of (Display Name, Technical Path)
+        # 2. Assignment of Engine Mappings and Directories
+
+        # The PGN directory is now composed based on the suffix in the JSON
+        pgn_suffix = config_data.get("default_pgn_dir_suffix", "Schaken")
+        self.default_pgn_dir = os.path.join(os.path.expanduser("~"), pgn_suffix)
+        print(f"Default PGN Directory: {self.default_pgn_dir}")
+
+        # The engine options are loaded from the JSON
+        # The JSON structure (list of dicts) is converted to the Python structure (list of tuples)
+        json_engine_options: List[Dict[str, str]] = config_data.get("engine_options", [])
         self.engine_options: List[Tuple[str, str]] = [
-            ("Stockfish (Standard Engine Path)", "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/stockfish-ubuntu-x86-64-avx2"),
-            ("Koivisto 9.2 (Linux Engine)", "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/Koivisto_9.2-linux-pgo-native"),
-            ("Empty (Enter manually or browse)", ""),
+            (item.get("display_name", ""), item.get("path", ""))
+            for item in json_engine_options
         ]
+
+        print("\nLoaded Engine Options:")
+        for name, path in self.engine_options:
+            print(f"- {name}: {path}")
+
+        # --- The rest of the GUI initialization would go here ---
+
+        # For demonstration, a simple label
+        #tk.Label(self, text="Configuratie succesvol geladen!", font=("Arial", 16)).pack(pady=50)
 
         # 2. Map for quick lookup
         self.engine_map: Dict[str, str] = {name: path for name, path in self.engine_options}
@@ -630,6 +651,30 @@ class AnnotatorGUI(tk.Tk):
         self.create_widgets()
         self.inputfile_var.trace_add("write", self.update_pgn_path)
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    def _load_config(self) -> Dict[str, Any]:
+        """
+        Loads configuration from the JSON file.
+        Provides robust error handling for missing files or invalid JSON.
+        """
+        print(f"Attempting to load configuration from: {CONFIG_FILE_PATH}")
+
+        if not CONFIG_FILE_PATH.exists():
+            print(f"Error: Configuration file not found at {CONFIG_FILE_PATH}. Using empty/default values.")
+            # Return an empty dictionary to prevent the program from crashing
+            return {}
+
+        try:
+            with open(CONFIG_FILE_PATH, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            print("Configuration successfully loaded.", config)
+            return config
+
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON in {CONFIG_FILE_PATH}: {e}. Using empty/default values.")
+            return {}
+        except Exception as e:
+            print(f"Unexpected error loading configuration: {e}. Using empty/default values.")
+            return {}
 
     # --- Engine Selector Logic ---
 

@@ -1,0 +1,17 @@
+{
+    "default_pgn_dir_suffix": "Schaken",
+    "engine_options": [
+        {
+            "display_name": "Stockfish (Standaard Engine Pad)",
+            "path": "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/stockfish-ubuntu-x86-64-avx2"
+        },
+        {
+            "display_name": "Koivisto 9.2 (Linux Engine)",
+            "path": "/home/user/Schaken/stockfish-python/Python-Easy-Chess-GUI/Engines/Koivisto_9.2-linux-pgo-native"
+        },
+        {
+            "display_name": "Leeg (Handmatig invoeren of bladeren)",
+            "path": ""
+        }
+    ]
+}
