@@ -1,236 +1,10 @@
 import tkinter as tk
-import core
-from typing import Tuple
-from core import logger
-import chess
-import chess.pgn
-import chess.engine
-import chess.variant
-import os
 
 # run_annotate(pgnfile: str, enginepath: str, gametime: int, threads: int, filter_str: str, outputfile: str)
 #
 from tkinter import ttk
 from typing import List, Dict, Any, Optional
-from core import _load_config
-
-
-# --- HELPER FUNCTION FOR SIMULATING PGN READING ---
-def _pgn_reader(input_file_path: str, tag_name: str, tag_value: str, all_games: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Reads a PGN file and filters by a Site or Event.
-
-    Args:
-        input_filename: The name of the PGN file
-        tag_name: "Site" or "Event".
-        tag_value: The name of the Site or Event to filter on.
-
-    Returns:
-        A list of game data (White, Black, Result, Date, Site, Event).
-    """
-
-    # Filter the data
-    filtered_games = [game for game in all_games if game.get(tag_name) == tag_value]
-
-    # Format the output to return only the necessary meta-information
-    output = []
-    for game in filtered_games:
-        # Ensure all necessary tags are present for the GameListView
-        output.append({
-            "White": game["White"],
-            "Black": game["Black"],
-            "Result": game["Result"],
-            "Site": game["Site"],
-            "Event": game["Event"],
-            "Date": game["Date"]
-        })
-
-    return output
-
-
-class GameListView:
-    """
-    A separate Toplevel class to display the list of filtered games.
-    Adds a context menu to copy full game metadata.
-    """
-
-    def __init__(self, master: tk.Tk, title: str, games_data: List[Dict[str, Any]], input_filename):
-        self.top = tk.Toplevel(master)
-        self.top.title(f"Games for: {title}")
-        self.top.geometry("600x400")
-        self.top.configure(bg='#ECEFF1')
-
-        self.games_data = games_data # Full data, needed for copying
-        self.input_filename = input_filename
-
-        self.title_label = ttk.Label(self.top, text=f"Filtered Games ({len(games_data)}): {title}",
-                                     font=('Helvetica', 12, 'bold'), padding=(10, 10))
-        self.title_label.pack(fill=tk.X)
-
-        # Status bar for feedback (NEW)
-        self.status_label = ttk.Label(self.top, text="Right-click on a game to copy metadata.",
-                                      anchor=tk.W, background='#CFD8DC', padding=(5, 2))
-        self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
-
-        # Treeview for the games
-        self.tree = self._create_treeview(self.top)
-        self._load_data_into_tree(self.tree, games_data)
-
-        # Configure Context Menu (NEW)
-        self.context_menu = tk.Menu(self.top, tearoff=0)
-        self.context_menu.add_command(label="Copy to Clipboard", command=self._copy_selected_game_data)
-        self.context_menu.add_command(label="Analyze Game", command=self._analyse_game_data)
-
-        # Bind the context menu (right-click) event
-        self.tree.bind('<Button-3>', self._show_context_menu)
-
-
-    def _create_treeview(self, parent_frame: tk.Toplevel) -> ttk.Treeview:
-        """Creates and configures a Treeview widget for the game list."""
-
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Game.Treeview.Heading", font=('Helvetica', 10, 'bold'),
-                        background='#546E7A', foreground='white')
-
-        columns = ("White", "Black", "Result", "Date")
-        tree = ttk.Treeview(parent_frame, columns=columns, show='headings', style="Game.Treeview")
-        tree.pack(fill="both", expand=True, padx=10, pady=5)
-
-        # Set headers
-        tree.heading("White", text="White", anchor=tk.W)
-        tree.heading("Black", text="Black", anchor=tk.W)
-        tree.heading("Result", text="Result", anchor=tk.CENTER)
-        tree.heading("Date", text="Date", anchor=tk.CENTER)
-
-        # Set widths
-        tree.column("White", width=150, anchor=tk.W)
-        tree.column("Black", width=150, anchor=tk.W)
-        tree.column("Result", width=80, anchor=tk.CENTER)
-        tree.column("Date", width=100, anchor=tk.CENTER)
-
-        # Add scrollbar
-        vsb = ttk.Scrollbar(parent_frame, orient="vertical", command=tree.yview)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10))
-        tree.configure(yscrollcommand=vsb.set)
-
-        return tree
-
-    def _load_data_into_tree(self, tree: ttk.Treeview, data: List[Dict[str, Any]]):
-        """Inserts game data into the Treeview and uses the index as iid."""
-        # Tags for alternating colors
-        tree.tag_configure('evenrow', background='#F5F5F5')
-        tree.tag_configure('oddrow', background='#FFFFFF')
-
-        for i, item in enumerate(data):
-            tag = 'oddrow' if i % 2 != 0 else 'evenrow'
-            # Use the index 'i' as the item identifier (iid) to retrieve the full data
-            tree.insert("", tk.END, iid=str(i), values=(item["White"], item["Black"], item["Result"], item["Date"]), tags=(tag,))
-
-    def _show_context_menu(self, event):
-        """
-        Displays the context menu at the mouse position if a row is selected.
-        """
-        item_id = self.tree.identify_row(event.y)
-
-        if item_id:
-            # Select the item that was clicked
-            self.tree.selection_set(item_id)
-
-            try:
-                # Show the menu at the mouse position
-                self.context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                self.context_menu.grab_release()
-
-    def _analyse_game_data(self):
-        """
-        Copies the full metadata of the selected game to the clipboard.
-        """
-        ## 1. Read configuration data
-        config_data = _load_config()
-
-        # 2. Assignment of Engine Mappings and Directories
-
-        # The PGN directory is now composed based on the suffix in the JSON
-        pgn_suffix = config_data.get("default_pgn_dir_suffix", "Schaken")
-        default_pgn_dir = os.path.join(os.path.expanduser("~"), pgn_suffix)
-        print(f"Default PGN Directory: {default_pgn_dir}")
-
-        # The engine options are loaded from the JSON
-        # The JSON structure (list of dicts) is converted to the Python structure (list of tuples)
-        json_engine_options: List[Dict[str, str]] = config_data.get("engine_options", [])
-        self.engine_options: List[Tuple[str, str]] = [
-            (item.get("display_name", ""), item.get("path", ""))
-            for item in json_engine_options
-        ]
-
-        # 2. Map for quick lookup
-        self.engine_map: Dict[str, str] = {name: path for name, path in self.engine_options}
-
-        # 3. Only the path names for the engine-name
-        self.default_engine_display_names: List[str] = [path for name, path in self.engine_options]
-        # get the first item (hope it is there) as the engie to be used
-        engine_name = self.default_engine_display_names[0]
-
-        # get the current item in the list displayed on screen
-        selected_item_ids = self.tree.selection()
-        if not selected_item_ids:
-            self.status_label.configure(text="No game selected to copy.")
-            return
-
-        # The id is the stringified index in self.games_data
-        game_index_str = selected_item_ids[0]
-        try:
-            game_index = int(game_index_str)
-            game_data = self.games_data[game_index]
-        except (ValueError, IndexError):
-            self.status_label.configure(text="Error: Could not retrieve game data.")
-            return
-
-        # Format the requested string: Event:...;Site:...;White:...;Black:....;Date:....
-        filter_string = f"Event:{game_data['Event']};Site:{game_data['Site']};White:{game_data['White']};Black:{game_data['Black']};Date:{game_data['Date']}"
-        new_pgn_path = os.path.join(default_pgn_dir, f"{game_data['White']}-{game_data['Black']}.pgn")
-        pgn_output_string = new_pgn_path
-        #update status in console
-        print(f"start analysis, create {new_pgn_path}")
-        self.status_label.configure(text=f"Please wait, analyzing: {pgn_output_string[:60]}...")
-        self.status_label.update()
-        core.run_annotate(self.input_filename, engine_name, 1.0, 8, filter_string, pgn_output_string)
-
-        self.status_label.configure(text=f"created: {pgn_output_string[:60]}...")
-
-    def _copy_selected_game_data(self):
-        """
-        Copies the full metadata of the selected game to the clipboard.
-        """
-        selected_item_ids = self.tree.selection()
-        if not selected_item_ids:
-            self.status_label.configure(text="No game selected to copy.")
-            return
-
-        # The iid is the stringified index in self.games_data
-        game_index_str = selected_item_ids[0]
-        try:
-            game_index = int(game_index_str)
-            game_data = self.games_data[game_index]
-        except (ValueError, IndexError):
-            self.status_label.configure(text="Error: Could not retrieve game data.")
-            return
-
-        # Format the requested string: Event:...;Site:...;White:...;Black:....;Date:....
-        copy_string = (
-            f"Event:{game_data['Event']};"
-            f"Site:{game_data['Site']};"
-            f"White:{game_data['White']};"
-            f"Black:{game_data['Black']};"
-            f"Date:{game_data['Date']}"
-        )
-
-        self.top.clipboard_clear()
-        self.top.clipboard_append(copy_string)
-
-        self.status_label.configure(text=f"Game data copied to clipboard: {copy_string[:60]}...")
+from game_list_gui import GameListView
 
 
 class PGNStatsView:
@@ -336,6 +110,38 @@ class PGNStatsView:
         if self.current_tree:
             self._copy_item(self.current_tree)
 
+    # --- HELPER FUNCTION FOR PGN READING ---
+    def _pgn_reader(self, input_file_path: str, tag_name: str, tag_value: str, all_games: List[Dict[str, Any]]) -> List[
+        Dict[str, Any]]:
+        """
+        Reads a PGN file and filters by a Site or Event.
+
+        Args:
+            input_filename: The name of the PGN file
+            tag_name: "Site" or "Event".
+            tag_value: The name of the Site or Event to filter on.
+
+        Returns:
+            A list of game data (White, Black, Result, Date, Site, Event).
+        """
+
+        # Filter the data
+        filtered_games = [game for game in all_games if game.get(tag_name) == tag_value]
+
+        # Format the output to return only the necessary meta-information
+        output = []
+        for game in filtered_games:
+            # Ensure all necessary tags are present for the GameListView
+            output.append({
+                "White": game["White"],
+                "Black": game["Black"],
+                "Result": game["Result"],
+                "Site": game["Site"],
+                "Event": game["Event"],
+                "Date": game["Date"]
+            })
+
+        return output
     def _display_selected_games(self):
         """Function called by the 'Show Games' menu command."""
 
@@ -347,7 +153,7 @@ class PGNStatsView:
             self.status_label.configure(text=f"Loading games for: {tag_name} - {tag_value}...")
 
             # --- PGN READ AND FILTER LOGIC ---
-            filtered_games = _pgn_reader(filename, tag_name, tag_value, self.all_games)
+            filtered_games = self._pgn_reader(filename, tag_name, tag_value, self.all_games)
             # --- END PGN LOGIC ---
 
             if filtered_games:
