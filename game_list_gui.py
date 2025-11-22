@@ -110,7 +110,7 @@ class GameListView:
 
                 # 1. Prepare analysis strings
             filter_string = f"Event:{game_data['Event']};Site:{game_data['Site']};White:{game_data['White']};Black:{game_data['Black']};Date:{game_data['Date']}"
-            new_pgn_path = os.path.join(self.default_pgn_dir, f"{game_data['White']}-{game_data['Black']}.pgn").replace(" ", "_")
+            new_pgn_path = os.path.join(self.default_pgn_dir, f"{game_data['White']}-{game_data['Black']}.pgn".replace(" ", "_"))
             pgn_output_string = new_pgn_path
 
             # 2. Update status: "Please wait, analyzing..." (SAFELY via after)
@@ -120,7 +120,9 @@ class GameListView:
             # 3. Execute the heavy lifting (this only blocks the worker thread)
             try:
                 # Original call
-                core.run_annotate(self.input_filename, self.engine_name, 1.0, 8, filter_string, pgn_output_string)
+                print(filter_string)
+                print(pgn_output_string)
+                core.run_annotate(self.input_filename, self.engine_name, 1, 8, filter_string, pgn_output_string)
             except Exception as e:
                 # Update error status (SAFELY via after)
                 self.top.after(0, self._update_status,
@@ -176,8 +178,12 @@ class GameListView:
 
         for i, item in enumerate(data):
             tag = 'oddrow' if i % 2 != 0 else 'evenrow'
+            white = item["White"]
+            whiteElo = item["WhiteElo"]
+            black = item["Black"]
+            blackElo = item["BlackElo"]
             # Use the index 'i' as the item identifier (iid) to retrieve the full data
-            tree.insert("", tk.END, iid=str(i), values=(item["White"], item["Black"], item["Result"], item["Date"]),
+            tree.insert("", tk.END, iid=str(i), values=(f"{white}({whiteElo})", f"{black}({blackElo})", item["Result"], item["Date"]),
                         tags=(tag,))
 
     def _show_context_menu(self, event):

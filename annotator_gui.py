@@ -15,7 +15,7 @@ import chess.engine
 import chess.variant
 import json
 from pathlib import Path
-from core import logger, run_annotate, extract_filename_from_inputfile, _load_config
+from core import logger, run_annotate, extract_filename_from_inputfile, _load_config, pgn_text_iterator
 from statsview import PGNStatsView
 # --- LOGGING AND STDOUT REDIRECTION CLASS ---
 
@@ -75,22 +75,25 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[List[Dict[str, Any]], List[
     try:
         # File handling: Using a context manager for proper closing is best practice
         logger.info(f"Starting PGN analysis of: {os.path.basename(input_file_path)}")
-        # Here the file would be opened:
-        pgn_file = open(input_file_path, encoding="utf-8")
 
         all_games = []
 
 
         game_counter = 0
-        while True:
-            # Use the mock reader if it is a simulation, otherwise the real reader
-            game = chess.pgn.read_game(pgn_file) # Real reader
+        for item in pgn_text_iterator(input_file_path):
+            pgn_io = io.StringIO(item.strip())
+            try:
+                game = chess.pgn.read_game(pgn_io)
+            except Exception as e:
+                print(e)
+                print(item)
+                continue
 
-            if game is None:
-                break
             game_data = {}
 
             game_data["White"]= game.headers.get("White","")
+            game_data["WhiteElo"] = game.headers.get("WhiteElo", "")
+            game_data["BlackElo"] = game.headers.get("BlackElo", "")
             game_data["Black"]= game.headers.get("Black","")
             game_data["Result"]= game.headers.get("Result","")
             game_data["Date"]= game.headers.get("Date","")
@@ -136,10 +139,6 @@ def analyze_pgn_stats(input_file_path: str) -> Tuple[List[Dict[str, Any]], List[
                 stats_event[event]['player_count'] += current_game_player_count
 
         logger.info(f"Total {game_counter} games read.")
-
-        # Close file only if it was actually opened
-        if pgn_file:
-            pgn_file.close()
 
         # 3. Format the results and return them
 

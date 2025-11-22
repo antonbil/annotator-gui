@@ -13,8 +13,23 @@ software.
 NOTE: This code is based on the original PGN analysis function by Ryan Delaney and
 has been extended by Anton Bil to include a Tkinter GUI with sorting and clipboard
 functionality.
-"""
 
+"""
+import sys
+import os
+# --- START PATH FIX ---
+# Deze code zorgt ervoor dat de map waarin dit script zich bevindt
+# (en dus ook core.py) wordt toegevoegd aan de zoekpaden van Python (sys.path).
+
+# 1. Bepaal het absolute pad van de directory waarin dit bestand (annotator.py) zich bevindt.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Controleer of dit pad al in sys.path staat.
+if current_dir not in sys.path:
+    # 3. Voeg de directory toe aan het begin van sys.path, zodat 'core.py' gevonden kan worden.
+    sys.path.insert(0, current_dir)
+
+# --- END PATH FIX ---
 import argparse
 import core
 from annotator_gui import AnnotatorGUI

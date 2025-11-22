@@ -18,6 +18,7 @@ import asyncio
 import chess.variant
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 print(f"--- Debugging in: {__file__} ---")
 print(f"Current Working Directory: {os.getcwd()}")
@@ -1202,6 +1203,6 @@ async def run_annotate_async(pgnfile, engine_path, gametime,threads, filter_str,
         # Ensure engine is quit even if an error occurs outside the loop
         if engine and valid_engine(engine_path):
             try:
-                engine.quit()
+                await engine.quit()
             except Exception:
                 pass # Ignore if engine is already closed

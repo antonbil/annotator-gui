@@ -138,6 +138,8 @@ class PGNStatsView:
                 "Result": game["Result"],
                 "Site": game["Site"],
                 "Event": game["Event"],
+                "WhiteElo": game["WhiteElo"],
+                "BlackElo": game["BlackElo"],
                 "Date": game["Date"]
             })
 
